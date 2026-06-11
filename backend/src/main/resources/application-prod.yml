@@ -1,0 +1,25 @@
+# Active with: SPRING_PROFILES_ACTIVE=prod
+# Use when connecting to AWS RDS (or any remote PostgreSQL)
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=${DB_SSL_MODE:require}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+app:
+  # Disable default admin seed in production after first deploy
+  seed-admin:
+    enabled: ${SEED_ADMIN:false}
+
+logging:
+  level:
+    com.dispatchflow: INFO
+    org.springframework.security: WARN

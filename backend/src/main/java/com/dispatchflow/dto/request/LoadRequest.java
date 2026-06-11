@@ -1,0 +1,49 @@
+package com.dispatchflow.dto.request;
+
+import com.dispatchflow.enums.LoadStatus;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class LoadRequest {
+
+    @NotNull(message = "Driver ID is required")
+    private Long driverId;
+
+    @NotBlank(message = "Broker name is required")
+    @Size(max = 255, message = "Broker name must not exceed 255 characters")
+    private String brokerName;
+
+    @NotBlank(message = "Pickup city is required")
+    @Size(max = 100, message = "Pickup city must not exceed 100 characters")
+    private String pickupCity;
+
+    @NotBlank(message = "Delivery city is required")
+    @Size(max = 100, message = "Delivery city must not exceed 100 characters")
+    private String deliveryCity;
+
+    @NotNull(message = "Rate is required")
+    @DecimalMin(value = "0.01", message = "Rate must be greater than zero")
+    private BigDecimal rate;
+
+    @NotNull(message = "Miles is required")
+    @Min(value = 1, message = "Miles must be at least 1")
+    private Integer miles;
+
+    @NotNull(message = "Status is required")
+    private LoadStatus status;
+}

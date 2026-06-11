@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+
+# Local env (templates .env.example are committed)
+.env
+.env.aws
+frontend/.env
+frontend-admin/.env
+backend/.env
