@@ -1,5 +1,6 @@
 package com.dispatchflow.entity;
 
+import com.dispatchflow.enums.DriverStatus;
 import com.dispatchflow.enums.TrailerType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -51,6 +52,11 @@ public class Driver {
     @Column(nullable = false, length = 255)
     private String currentLocation;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private DriverStatus status = DriverStatus.AVAILABLE;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "carrier_id", nullable = false)
     private Carrier carrier;
@@ -66,6 +72,9 @@ public class Driver {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
+        if (status == null) {
+            status = DriverStatus.AVAILABLE;
+        }
     }
 
     @PreUpdate

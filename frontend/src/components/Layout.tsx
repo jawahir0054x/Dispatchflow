@@ -3,9 +3,11 @@ import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/dispatch', label: 'Dispatch Board' },
   { to: '/carriers', label: 'Carriers' },
   { to: '/drivers', label: 'Drivers' },
   { to: '/loads', label: 'Loads' },
+  { to: '/documents', label: 'Documents' },
 ]
 
 export function Layout() {

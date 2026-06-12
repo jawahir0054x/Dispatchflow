@@ -3,31 +3,63 @@ import * as driversApi from '../api/drivers'
 import * as loadsApi from '../api/loads'
 import { ApiClientError } from '../api/client'
 import { Alert } from '../components/Alert'
+import { DeadheadCalculator } from '../components/DeadheadCalculator'
+import { DispatchActions } from '../components/DispatchActions'
 import { FormField, SelectInput, TextInput } from '../components/FormField'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
-import { DispatchActions } from '../components/DispatchActions'
 import { StatusBadge } from '../components/StatusBadge'
 import type { Driver, Load, LoadRequest, LoadStatus } from '../types'
-import { formatCurrency } from '../utils/format'
+import { formatCurrency, formatDate, formatDateOnly, formatEnum, formatPercent } from '../utils/format'
 
 const LOAD_STATUSES: LoadStatus[] = [
-  'PENDING',
+  'AVAILABLE',
+  'BOOKED',
   'DISPATCHED',
   'IN_TRANSIT',
   'DELIVERED',
-  'CANCELLED',
+  'PAID',
 ]
 
 const emptyForm: LoadRequest = {
-  driverId: 0,
+  driverId: null,
   referenceNumber: '',
   brokerName: '',
   pickupCity: '',
   deliveryCity: '',
+  commodity: '',
   rate: 0,
   miles: 0,
-  status: 'PENDING',
+  deadheadMiles: 0,
+  pickupDate: '',
+  deliveryDate: '',
+  status: 'AVAILABLE',
+}
+
+function loadToForm(load: Load): LoadRequest {
+  return {
+    driverId: load.driverId ?? null,
+    referenceNumber: load.referenceNumber ?? '',
+    brokerName: load.brokerName,
+    pickupCity: load.pickupCity,
+    deliveryCity: load.deliveryCity,
+    commodity: load.commodity,
+    rate: load.rate,
+    miles: load.miles,
+    deadheadMiles: load.deadheadMiles,
+    pickupDate: load.pickupDate,
+    deliveryDate: load.deliveryDate,
+    status: load.status,
+  }
+}
+
+function toLoadPayload(form: LoadRequest): LoadRequest {
+  return {
+    ...form,
+    driverId: form.driverId || null,
+    referenceNumber: form.referenceNumber?.trim() || undefined,
+    deadheadMiles: form.deadheadMiles ?? 0,
+  }
 }
 
 export function LoadsPage() {
@@ -36,12 +68,16 @@ export function LoadsPage() {
   const [driverFilter, setDriverFilter] = useState<number | undefined>()
   const [statusFilter, setStatusFilter] = useState<LoadStatus | undefined>()
   const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [editing, setEditing] = useState<Load | null>(null)
+  const [viewing, setViewing] = useState<Load | null>(null)
   const [form, setForm] = useState<LoadRequest>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
 
@@ -49,7 +85,14 @@ export function LoadsPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await loadsApi.getLoads(page, 20, 'createdAt,desc', driverFilter, statusFilter)
+      const response = await loadsApi.getLoads(
+        page,
+        20,
+        'createdAt,desc',
+        driverFilter,
+        statusFilter,
+        search,
+      )
       setLoads(response.content)
       setTotalPages(response.totalPages)
       setTotalElements(response.totalElements)
@@ -58,7 +101,7 @@ export function LoadsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, driverFilter, statusFilter])
+  }, [page, driverFilter, statusFilter, search])
 
   useEffect(() => {
     driversApi.getDrivers(0, 100).then((res) => setDrivers(res.content)).catch(() => {})
@@ -70,26 +113,38 @@ export function LoadsPage() {
 
   function openCreate() {
     setEditing(null)
-    setForm({
-      ...emptyForm,
-      driverId: drivers[0]?.id ?? 0,
-    })
-    setModalOpen(true)
+    setForm(emptyForm)
+    setFormModalOpen(true)
   }
 
   function openEdit(load: Load) {
     setEditing(load)
-    setForm({
-      driverId: load.driverId,
-      referenceNumber: load.referenceNumber ?? '',
-      brokerName: load.brokerName,
-      pickupCity: load.pickupCity,
-      deliveryCity: load.deliveryCity,
-      rate: load.rate,
-      miles: load.miles,
-      status: load.status,
-    })
-    setModalOpen(true)
+    setForm(loadToForm(load))
+    setDetailsModalOpen(false)
+    setFormModalOpen(true)
+  }
+
+  async function openView(load: Load) {
+    setError(null)
+    try {
+      const details = await loadsApi.getLoad(load.id)
+      setViewing(details)
+      setDetailsModalOpen(true)
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to load load details')
+    }
+  }
+
+  function handleSearchSubmit(event: FormEvent) {
+    event.preventDefault()
+    setPage(0)
+    setSearch(searchInput.trim())
+  }
+
+  function clearSearch() {
+    setSearchInput('')
+    setSearch('')
+    setPage(0)
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -97,12 +152,13 @@ export function LoadsPage() {
     setSubmitting(true)
     setError(null)
     try {
+      const payload = toLoadPayload(form)
       if (editing) {
-        await loadsApi.updateLoad(editing.id, form)
+        await loadsApi.updateLoad(editing.id, payload)
       } else {
-        await loadsApi.createLoad(form)
+        await loadsApi.createLoad(payload)
       }
-      setModalOpen(false)
+      setFormModalOpen(false)
       await loadLoads()
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to save load')
@@ -113,6 +169,7 @@ export function LoadsPage() {
 
   function handleLoadUpdated(updated: Load) {
     setLoads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+    setViewing((prev) => (prev?.id === updated.id ? updated : prev))
   }
 
   async function handleDelete(load: Load) {
@@ -122,6 +179,8 @@ export function LoadsPage() {
     setError(null)
     try {
       await loadsApi.deleteLoad(load.id)
+      setDetailsModalOpen(false)
+      setViewing(null)
       await loadLoads()
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to delete load')
@@ -138,22 +197,38 @@ export function LoadsPage() {
         <button
           type="button"
           onClick={openCreate}
-          disabled={drivers.length === 0}
-          className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 disabled:opacity-50"
+          className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
         >
           Add load
         </button>
       </div>
 
-      {drivers.length === 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Add a driver before creating loads.
-        </div>
-      )}
-
       {error && <Alert message={error} />}
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap items-end gap-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-1 flex-wrap gap-3">
+          <TextInput
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by broker, lane, commodity, driver, or carrier..."
+            className="min-w-64 flex-1"
+          />
+          <button
+            type="submit"
+            className="rounded-xl bg-surface-800 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-surface-700"
+          >
+            Search
+          </button>
+          {search && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="rounded-xl border border-surface-700 px-4 py-2.5 text-sm font-medium text-slate-400"
+            >
+              Clear
+            </button>
+          )}
+        </form>
         <FormField label="Filter by driver">
           <SelectInput
             value={driverFilter ?? ''}
@@ -183,17 +258,17 @@ export function LoadsPage() {
             <option value="">All statuses</option>
             {LOAD_STATUSES.map((status) => (
               <option key={status} value={status}>
-                {status.replaceAll('_', ' ')}
+                {formatEnum(status)}
               </option>
             ))}
           </SelectInput>
         </FormField>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-surface-900 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-slate-400">
+            <thead className="border-b border-surface-800 bg-surface-900 text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">Load #</th>
                 <th className="px-4 py-3 font-medium">Lane</th>
@@ -215,14 +290,16 @@ export function LoadsPage() {
               ) : loads.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
-                    No loads found.
+                    {search || driverFilter || statusFilter
+                      ? 'No loads match your filters.'
+                      : 'No loads yet. Add your first load to get started.'}
                   </td>
                 </tr>
               ) : (
                 loads.map((load) => (
-                  <tr key={load.id} className="border-b border-white/5 last:border-0">
+                  <tr key={load.id} className="border-b border-surface-800 last:border-0">
                     <td className="px-4 py-3">
-                      <p className="font-mono text-xs font-semibold text-brand-300">{load.loadNumber}</p>
+                      <p className="font-mono text-xs font-semibold text-brand-400">{load.loadNumber}</p>
                       <p className="font-medium text-white">{load.brokerName}</p>
                       {load.referenceNumber && (
                         <p className="text-xs text-slate-500">Ref: {load.referenceNumber}</p>
@@ -230,13 +307,15 @@ export function LoadsPage() {
                     </td>
                     <td className="px-4 py-3 text-slate-300">
                       {load.pickupCity} → {load.deliveryCity}
-                      <p className="text-xs text-slate-500">{load.miles} mi</p>
+                      <p className="text-xs text-slate-500">{load.miles} mi · {load.commodity}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-300">
-                      <p>{load.driverName}</p>
-                      <p className="text-xs text-slate-500">{load.carrierName}</p>
+                      <p>{load.driverName ?? 'Unassigned'}</p>
+                      {load.carrierName && (
+                        <p className="text-xs text-slate-500">{load.carrierName}</p>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{formatCurrency(load.rate)}</td>
+                    <td className="px-4 py-3 text-white">{formatCurrency(load.rate)}</td>
                     <td className="px-4 py-3 text-slate-400">
                       {formatCurrency(load.ratePerMile)}/mi
                     </td>
@@ -255,8 +334,15 @@ export function LoadsPage() {
                       <div className="flex gap-2">
                         <button
                           type="button"
+                          onClick={() => openView(load)}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => openEdit(load)}
-                          className="text-brand-300 hover:text-brand-200"
+                          className="text-brand-400 hover:text-brand-300"
                         >
                           Edit
                         </button>
@@ -275,7 +361,7 @@ export function LoadsPage() {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-white/10 px-4 py-3">
+        <div className="border-t border-surface-800 px-4 py-3">
           <Pagination
             page={page}
             totalPages={totalPages}
@@ -287,16 +373,21 @@ export function LoadsPage() {
 
       <Modal
         title={editing ? 'Edit load' : 'Add load'}
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        open={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <FormField label="Driver">
+          <FormField label="Assigned driver">
             <SelectInput
-              value={form.driverId}
-              onChange={(e) => setForm({ ...form, driverId: Number(e.target.value) })}
-              required
+              value={form.driverId ?? ''}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  driverId: e.target.value ? Number(e.target.value) : null,
+                })
+              }
             >
+              <option value="">Unassigned</option>
               {drivers.map((driver) => (
                 <option key={driver.id} value={driver.id}>
                   {driver.name} ({driver.carrierName})
@@ -336,7 +427,21 @@ export function LoadsPage() {
               />
             </FormField>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <DeadheadCalculator
+            drivers={drivers}
+            selectedDriverId={form.driverId ?? null}
+            pickupCity={form.pickupCity}
+            onApply={(deadheadMiles) => setForm({ ...form, deadheadMiles })}
+            variant="dark"
+          />
+          <FormField label="Commodity">
+            <TextInput
+              value={form.commodity}
+              onChange={(e) => setForm({ ...form, commodity: e.target.value })}
+              required
+            />
+          </FormField>
+          <div className="grid grid-cols-3 gap-4">
             <FormField label="Rate ($)">
               <TextInput
                 type="number"
@@ -347,12 +452,38 @@ export function LoadsPage() {
                 required
               />
             </FormField>
-            <FormField label="Miles">
+            <FormField label="Loaded miles">
               <TextInput
                 type="number"
                 min="1"
                 value={form.miles || ''}
                 onChange={(e) => setForm({ ...form, miles: Number(e.target.value) })}
+                required
+              />
+            </FormField>
+            <FormField label="Deadhead miles">
+              <TextInput
+                type="number"
+                min="0"
+                value={form.deadheadMiles ?? 0}
+                onChange={(e) => setForm({ ...form, deadheadMiles: Number(e.target.value) })}
+              />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Pickup date">
+              <TextInput
+                type="date"
+                value={form.pickupDate}
+                onChange={(e) => setForm({ ...form, pickupDate: e.target.value })}
+                required
+              />
+            </FormField>
+            <FormField label="Delivery date">
+              <TextInput
+                type="date"
+                value={form.deliveryDate}
+                onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
                 required
               />
             </FormField>
@@ -365,7 +496,7 @@ export function LoadsPage() {
             >
               {LOAD_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {status.replaceAll('_', ' ')}
+                  {formatEnum(status)}
                 </option>
               ))}
             </SelectInput>
@@ -373,20 +504,165 @@ export function LoadsPage() {
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setModalOpen(false)}
-              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300"
+              onClick={() => setFormModalOpen(false)}
+              className="rounded-xl border border-surface-700 px-4 py-2.5 text-sm font-medium text-slate-300"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 disabled:opacity-60"
+              className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
             >
-              {submitting ? 'Saving...' : 'Save'}
+              {submitting ? 'Saving...' : editing ? 'Save changes' : 'Add load'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        title="Load details"
+        open={detailsModalOpen}
+        onClose={() => {
+          setDetailsModalOpen(false)
+          setViewing(null)
+        }}
+      >
+        {viewing && (
+          <div className="space-y-4">
+            <dl className="grid gap-3 text-sm">
+              <div>
+                <dt className="text-slate-400">Load number</dt>
+                <dd className="font-mono font-medium text-brand-400">{viewing.loadNumber}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Broker</dt>
+                  <dd className="font-medium text-white">{viewing.brokerName}</dd>
+                </div>
+                {viewing.referenceNumber && (
+                  <div>
+                    <dt className="text-slate-400">Reference #</dt>
+                    <dd className="font-medium text-white">{viewing.referenceNumber}</dd>
+                  </div>
+                )}
+              </div>
+              <div>
+                <dt className="text-slate-400">Lane</dt>
+                <dd className="font-medium text-white">
+                  {viewing.pickupCity} → {viewing.deliveryCity}
+                </dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Commodity</dt>
+                  <dd className="font-medium text-white">{viewing.commodity}</dd>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Loaded miles</dt>
+                  <dd className="font-medium text-white">{viewing.miles}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Deadhead miles</dt>
+                  <dd className="font-medium text-white">{viewing.deadheadMiles}</dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-slate-400">Rate</dt>
+                <dd className="font-medium text-white">{formatCurrency(viewing.rate)}</dd>
+              </div>
+              <div className="rounded-xl border border-surface-800 bg-surface-950 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Profitability
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <dt className="text-slate-400">Rate per mile</dt>
+                    <dd className="font-medium text-white">
+                      {formatCurrency(viewing.ratePerMile)}/mi
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Deadhead %</dt>
+                    <dd className="font-medium text-white">
+                      {formatPercent(viewing.deadheadPercentage)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-400">Estimated profit</dt>
+                    <dd
+                      className={`font-medium ${
+                        viewing.estimatedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {formatCurrency(viewing.estimatedProfit)}
+                    </dd>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Pickup date</dt>
+                  <dd className="font-medium text-white">{formatDateOnly(viewing.pickupDate)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Delivery date</dt>
+                  <dd className="font-medium text-white">
+                    {formatDateOnly(viewing.deliveryDate)}
+                  </dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-slate-400">Assigned driver</dt>
+                <dd className="font-medium text-white">
+                  {viewing.driverName ?? 'Unassigned'}
+                  {viewing.carrierName && (
+                    <span className="block text-xs font-normal text-slate-500">
+                      {viewing.carrierName}
+                    </span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Status</dt>
+                <dd className="mt-1">
+                  <StatusBadge status={viewing.status} />
+                </dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3 border-t border-surface-800 pt-3">
+                <div>
+                  <dt className="text-slate-400">Created</dt>
+                  <dd className="text-slate-300">{formatDate(viewing.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Last updated</dt>
+                  <dd className="text-slate-300">{formatDate(viewing.updatedAt)}</dd>
+                </div>
+              </div>
+            </dl>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <DispatchActions load={viewing} onUpdated={handleLoadUpdated} onError={setError} />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => openEdit(viewing)}
+                  className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+                >
+                  Edit load
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(viewing)}
+                  className="rounded-xl border border-rose-800 px-4 py-2.5 text-sm font-semibold text-rose-400 hover:bg-rose-950"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

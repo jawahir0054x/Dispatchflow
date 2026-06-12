@@ -9,6 +9,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -23,13 +24,19 @@ public class LoadResponse {
     private String brokerName;
     private String pickupCity;
     private String deliveryCity;
+    private String commodity;
     private BigDecimal rate;
     private Integer miles;
+    private Integer deadheadMiles;
+    private LocalDate pickupDate;
+    private LocalDate deliveryDate;
     private LoadStatus status;
     private Long driverId;
     private String driverName;
     private String carrierName;
     private BigDecimal ratePerMile;
+    private BigDecimal deadheadPercentage;
+    private BigDecimal estimatedProfit;
     private Instant createdAt;
     private Instant updatedAt;
 }

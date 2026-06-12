@@ -1,9 +1,10 @@
 package com.dispatchflow.enums;
 
 public enum LoadStatus {
-    PENDING,
+    AVAILABLE,
+    BOOKED,
     DISPATCHED,
     IN_TRANSIT,
     DELIVERED,
-    CANCELLED
+    PAID
 }

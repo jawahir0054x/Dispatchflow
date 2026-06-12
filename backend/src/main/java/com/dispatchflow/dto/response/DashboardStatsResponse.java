@@ -21,6 +21,7 @@ public class DashboardStatsResponse {
     private long totalCarriers;
     private long totalDrivers;
     private long totalLoads;
+    private long activeLoadsCount;
     private Long totalUsers;
     private long activeDrivers;
     private long idleDrivers;
@@ -30,6 +31,8 @@ public class DashboardStatsResponse {
     private BigDecimal deliveredRevenue;
     private BigDecimal pipelineRevenue;
     private BigDecimal avgRatePerMile;
+    private BigDecimal totalEstimatedProfit;
+    private BigDecimal avgDeadheadPercentage;
     private long totalMiles;
     private List<LoadResponse> recentLoads;
     private List<LoadResponse> activeLoads;

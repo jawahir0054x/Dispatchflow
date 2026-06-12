@@ -9,12 +9,15 @@ export type TrailerType =
   | 'TANKER'
   | 'OTHER'
 
+export type DriverStatus = 'AVAILABLE' | 'UNDER_LOAD' | 'OFF_DUTY'
+
 export type LoadStatus =
-  | 'PENDING'
+  | 'AVAILABLE'
+  | 'BOOKED'
   | 'DISPATCHED'
   | 'IN_TRANSIT'
   | 'DELIVERED'
-  | 'CANCELLED'
+  | 'PAID'
 
 export interface AuthResponse {
   token: string
@@ -60,6 +63,7 @@ export interface Carrier {
   dotNumber: string
   phone: string
   email: string
+  insuranceExpiryDate: string
   createdAt: string
   updatedAt: string
 }
@@ -70,6 +74,7 @@ export interface CarrierRequest {
   dotNumber: string
   phone: string
   email: string
+  insuranceExpiryDate: string
 }
 
 export interface Driver {
@@ -79,6 +84,7 @@ export interface Driver {
   truckNumber: string
   trailerType: TrailerType
   currentLocation: string
+  status: DriverStatus
   carrierId: number
   carrierName: string
   createdAt: string
@@ -92,6 +98,7 @@ export interface DriverRequest {
   truckNumber: string
   trailerType: TrailerType
   currentLocation: string
+  status: DriverStatus
 }
 
 export interface Load {
@@ -101,25 +108,35 @@ export interface Load {
   brokerName: string
   pickupCity: string
   deliveryCity: string
+  commodity: string
   rate: number
   miles: number
+  deadheadMiles: number
+  pickupDate: string
+  deliveryDate: string
   status: LoadStatus
-  driverId: number
-  driverName: string
-  carrierName: string
+  driverId?: number | null
+  driverName?: string | null
+  carrierName?: string | null
   ratePerMile: number
+  deadheadPercentage: number
+  estimatedProfit: number
   createdAt: string
   updatedAt: string
 }
 
 export interface LoadRequest {
-  driverId: number
+  driverId?: number | null
   referenceNumber?: string
   brokerName: string
   pickupCity: string
   deliveryCity: string
+  commodity: string
   rate: number
   miles: number
+  deadheadMiles?: number
+  pickupDate: string
+  deliveryDate: string
   status: LoadStatus
 }
 
@@ -132,6 +149,7 @@ export interface DashboardStats {
   totalCarriers: number
   totalDrivers: number
   totalLoads: number
+  activeLoadsCount: number
   totalUsers?: number | null
   activeDrivers: number
   idleDrivers: number
@@ -141,6 +159,8 @@ export interface DashboardStats {
   deliveredRevenue: number
   pipelineRevenue: number
   avgRatePerMile: number
+  totalEstimatedProfit: number
+  avgDeadheadPercentage: number
   totalMiles: number
   recentLoads: Load[]
   activeLoads: Load[]
@@ -152,4 +172,35 @@ export interface RegisterRequest {
   firstName: string
   lastName: string
   role: Role
+}
+
+export type DocumentType =
+  | 'RATE_CONFIRMATION'
+  | 'BOL'
+  | 'POD'
+  | 'LUMPER_RECEIPT'
+
+export interface LoadDocument {
+  id: number
+  loadId: number
+  loadNumber: string
+  documentType: DocumentType
+  originalFilename: string
+  contentType: string
+  fileSize: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DeadheadCalculationRequest {
+  currentLocation: string
+  pickupLocation: string
+}
+
+export interface DeadheadCalculationResponse {
+  currentLocation: string
+  pickupLocation: string
+  resolvedCurrentLocation: string
+  resolvedPickupLocation: string
+  deadheadMiles: number
 }

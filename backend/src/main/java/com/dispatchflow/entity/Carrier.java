@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "carriers")
@@ -43,6 +44,9 @@ public class Carrier {
 
     @Column(nullable = false, length = 255)
     private String email;
+
+    @Column(nullable = false)
+    private LocalDate insuranceExpiryDate;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

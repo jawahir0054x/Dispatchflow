@@ -3,9 +3,11 @@ import { ApiClientError } from '../api/client'
 import type { Load, LoadStatus } from '../types'
 
 const NEXT_STATUS: Partial<Record<LoadStatus, { status: LoadStatus; label: string }>> = {
-  PENDING: { status: 'DISPATCHED', label: 'Dispatch' },
+  AVAILABLE: { status: 'BOOKED', label: 'Book' },
+  BOOKED: { status: 'DISPATCHED', label: 'Dispatch' },
   DISPATCHED: { status: 'IN_TRANSIT', label: 'In transit' },
   IN_TRANSIT: { status: 'DELIVERED', label: 'Delivered' },
+  DELIVERED: { status: 'PAID', label: 'Mark paid' },
 }
 
 interface DispatchActionsProps {

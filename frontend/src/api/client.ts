@@ -81,3 +81,25 @@ export function buildPageParams(page: number, size: number, sort?: string): stri
   }
   return params.toString()
 }
+
+export async function apiBlobRequest(path: string): Promise<Blob> {
+  const headers: Record<string, string> = {}
+  const token = getToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, { headers })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    const error = data as ApiError | null
+    throw new ApiClientError(
+      error?.message ?? 'Request failed',
+      response.status,
+      error?.details,
+    )
+  }
+
+  return response.blob()
+}

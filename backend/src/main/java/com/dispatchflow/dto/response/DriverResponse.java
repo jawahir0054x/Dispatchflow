@@ -1,5 +1,6 @@
 package com.dispatchflow.dto.response;
 
+import com.dispatchflow.enums.DriverStatus;
 import com.dispatchflow.enums.TrailerType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,6 +23,7 @@ public class DriverResponse {
     private String truckNumber;
     private TrailerType trailerType;
     private String currentLocation;
+    private DriverStatus status;
     private Long carrierId;
     private String carrierName;
     private Instant createdAt;

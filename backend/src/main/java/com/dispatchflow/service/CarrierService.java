@@ -5,10 +5,13 @@ import com.dispatchflow.dto.response.CarrierResponse;
 import com.dispatchflow.dto.response.PageResponse;
 import com.dispatchflow.entity.Carrier;
 import com.dispatchflow.exception.DuplicateResourceException;
+import com.dispatchflow.exception.ForbiddenException;
 import com.dispatchflow.exception.ResourceNotFoundException;
 import com.dispatchflow.repository.CarrierRepository;
+import com.dispatchflow.repository.DriverRepository;
 import com.dispatchflow.util.PageMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class CarrierService {
 
     private final CarrierRepository carrierRepository;
+    private final DriverRepository driverRepository;
 
     @Transactional(readOnly = true)
-    public PageResponse<CarrierResponse> getAllCarriers(Pageable pageable) {
-        return PageMapper.toPageResponse(carrierRepository.findAll(pageable), this::toResponse);
+    public PageResponse<CarrierResponse> getAllCarriers(String search, Pageable pageable) {
+        Page<Carrier> page = isBlank(search)
+                ? carrierRepository.findAll(pageable)
+                : carrierRepository.searchByTerm(search.trim(), pageable);
+        return PageMapper.toPageResponse(page, this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -40,6 +47,7 @@ public class CarrierService {
                 .dotNumber(normalizeIdentifier(request.getDotNumber()))
                 .phone(request.getPhone().trim())
                 .email(request.getEmail().toLowerCase().trim())
+                .insuranceExpiryDate(request.getInsuranceExpiryDate())
                 .build();
 
         return toResponse(carrierRepository.save(carrier));
@@ -55,6 +63,7 @@ public class CarrierService {
         carrier.setDotNumber(normalizeIdentifier(request.getDotNumber()));
         carrier.setPhone(request.getPhone().trim());
         carrier.setEmail(request.getEmail().toLowerCase().trim());
+        carrier.setInsuranceExpiryDate(request.getInsuranceExpiryDate());
 
         return toResponse(carrierRepository.save(carrier));
     }
@@ -62,6 +71,9 @@ public class CarrierService {
     @Transactional
     public void deleteCarrier(Long id) {
         Carrier carrier = findCarrierOrThrow(id);
+        if (driverRepository.existsByCarrierId(id)) {
+            throw new ForbiddenException("Cannot delete carrier with assigned drivers");
+        }
         carrierRepository.delete(carrier);
     }
 
@@ -95,6 +107,10 @@ public class CarrierService {
         return value.trim().toUpperCase();
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     private CarrierResponse toResponse(Carrier carrier) {
         return CarrierResponse.builder()
                 .id(carrier.getId())
@@ -103,6 +119,7 @@ public class CarrierService {
                 .dotNumber(carrier.getDotNumber())
                 .phone(carrier.getPhone())
                 .email(carrier.getEmail())
+                .insuranceExpiryDate(carrier.getInsuranceExpiryDate())
                 .createdAt(carrier.getCreatedAt())
                 .updatedAt(carrier.getUpdatedAt())
                 .build();

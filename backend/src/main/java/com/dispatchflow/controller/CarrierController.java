@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,8 +33,9 @@ public class CarrierController {
     @GetMapping
     @PreAuthorize(Authorities.HAS_ADMIN_OR_DISPATCHER)
     public ResponseEntity<PageResponse<CarrierResponse>> getAllCarriers(
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(carrierService.getAllCarriers(pageable));
+        return ResponseEntity.ok(carrierService.getAllCarriers(search, pageable));
     }
 
     @GetMapping("/{id}")

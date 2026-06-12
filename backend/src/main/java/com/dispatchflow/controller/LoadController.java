@@ -38,8 +38,11 @@ public class LoadController {
     public ResponseEntity<PageResponse<LoadResponse>> getAllLoads(
             @RequestParam(required = false) Long driverId,
             @RequestParam(required = false) LoadStatus status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String broker,
+            @RequestParam(required = false) String driver,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(loadService.getAllLoads(driverId, status, pageable));
+        return ResponseEntity.ok(loadService.getAllLoads(driverId, status, search, broker, driver, pageable));
     }
 
     @GetMapping("/{id}")

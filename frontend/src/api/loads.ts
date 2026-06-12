@@ -7,6 +7,9 @@ export function getLoads(
   sort = 'createdAt,desc',
   driverId?: number,
   status?: LoadStatus,
+  search?: string,
+  broker?: string,
+  driver?: string,
 ) {
   const params = new URLSearchParams(buildPageParams(page, size, sort))
   if (driverId !== undefined) {
@@ -14,6 +17,15 @@ export function getLoads(
   }
   if (status !== undefined) {
     params.set('status', status)
+  }
+  if (search) {
+    params.set('search', search)
+  }
+  if (broker) {
+    params.set('broker', broker)
+  }
+  if (driver) {
+    params.set('driver', driver)
   }
   return apiRequest<PageResponse<Load>>(`/api/loads?${params}`)
 }

@@ -24,6 +24,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   sql:
     init:
       mode: never
@@ -43,6 +48,13 @@ app:
     password: ${ADMIN_PASSWORD:admin12345}
     first-name: System
     last-name: Admin
+  documents:
+    storage-path: ${DOCUMENTS_STORAGE_PATH:uploads}
+  loads:
+    operating-cost-per-mile: ${OPERATING_COST_PER_MILE:1.75}
+  deadhead:
+    geocoding-url: ${DEADHEAD_GEOCODING_URL:https://nominatim.openstreetmap.org}
+    routing-url: ${DEADHEAD_ROUTING_URL:https://router.project-osrm.org}
 
 management:
   endpoints:

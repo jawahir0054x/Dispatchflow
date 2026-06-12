@@ -54,8 +54,10 @@ export function RecentLoadsTable({
                 {load.pickupCity} → {load.deliveryCity}
               </td>
               <td className="px-4 py-3">
-                <p>{load.driverName}</p>
-                <p className="text-xs text-slate-400">{load.carrierName}</p>
+                <p>{load.driverName ?? 'Unassigned'}</p>
+                {load.carrierName && (
+                  <p className="text-xs text-slate-400">{load.carrierName}</p>
+                )}
               </td>
               <td className="px-4 py-3 font-medium">{formatCurrency(load.rate)}</td>
               <td className="px-4 py-3 text-slate-600">

@@ -3,11 +3,12 @@ import * as carriersApi from '../api/carriers'
 import * as driversApi from '../api/drivers'
 import { ApiClientError } from '../api/client'
 import { Alert } from '../components/Alert'
+import { DriverStatusBadge } from '../components/DriverStatusBadge'
 import { FormField, SelectInput, TextInput } from '../components/FormField'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
-import type { Carrier, Driver, DriverRequest, TrailerType } from '../types'
-import { formatEnum } from '../utils/format'
+import type { Carrier, Driver, DriverRequest, DriverStatus, TrailerType } from '../types'
+import { formatDate, formatEnum } from '../utils/format'
 
 const TRAILER_TYPES: TrailerType[] = [
   'DRY_VAN',
@@ -19,6 +20,8 @@ const TRAILER_TYPES: TrailerType[] = [
   'OTHER',
 ]
 
+const DRIVER_STATUSES: DriverStatus[] = ['AVAILABLE', 'UNDER_LOAD', 'OFF_DUTY']
+
 const emptyForm: DriverRequest = {
   carrierId: 0,
   name: '',
@@ -26,6 +29,19 @@ const emptyForm: DriverRequest = {
   truckNumber: '',
   trailerType: 'DRY_VAN',
   currentLocation: '',
+  status: 'AVAILABLE',
+}
+
+function driverToForm(driver: Driver): DriverRequest {
+  return {
+    carrierId: driver.carrierId,
+    name: driver.name,
+    phone: driver.phone,
+    truckNumber: driver.truckNumber,
+    trailerType: driver.trailerType,
+    currentLocation: driver.currentLocation,
+    status: driver.status,
+  }
 }
 
 export function DriversPage() {
@@ -33,12 +49,16 @@ export function DriversPage() {
   const [carriers, setCarriers] = useState<Carrier[]>([])
   const [carrierFilter, setCarrierFilter] = useState<number | undefined>()
   const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [editing, setEditing] = useState<Driver | null>(null)
+  const [viewing, setViewing] = useState<Driver | null>(null)
   const [form, setForm] = useState<DriverRequest>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
 
@@ -46,7 +66,7 @@ export function DriversPage() {
     setLoading(true)
     setError(null)
     try {
-      const response = await driversApi.getDrivers(page, 20, 'name,asc', carrierFilter)
+      const response = await driversApi.getDrivers(page, 20, 'name,asc', carrierFilter, search)
       setDrivers(response.content)
       setTotalPages(response.totalPages)
       setTotalElements(response.totalElements)
@@ -55,7 +75,7 @@ export function DriversPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, carrierFilter])
+  }, [page, carrierFilter, search])
 
   useEffect(() => {
     carriersApi.getCarriers(0, 100).then((res) => setCarriers(res.content)).catch(() => {})
@@ -71,20 +91,37 @@ export function DriversPage() {
       ...emptyForm,
       carrierId: carriers[0]?.id ?? 0,
     })
-    setModalOpen(true)
+    setFormModalOpen(true)
   }
 
   function openEdit(driver: Driver) {
     setEditing(driver)
-    setForm({
-      carrierId: driver.carrierId,
-      name: driver.name,
-      phone: driver.phone,
-      truckNumber: driver.truckNumber,
-      trailerType: driver.trailerType,
-      currentLocation: driver.currentLocation,
-    })
-    setModalOpen(true)
+    setForm(driverToForm(driver))
+    setDetailsModalOpen(false)
+    setFormModalOpen(true)
+  }
+
+  async function openView(driver: Driver) {
+    setError(null)
+    try {
+      const details = await driversApi.getDriver(driver.id)
+      setViewing(details)
+      setDetailsModalOpen(true)
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to load driver details')
+    }
+  }
+
+  function handleSearchSubmit(event: FormEvent) {
+    event.preventDefault()
+    setPage(0)
+    setSearch(searchInput.trim())
+  }
+
+  function clearSearch() {
+    setSearchInput('')
+    setSearch('')
+    setPage(0)
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -97,7 +134,7 @@ export function DriversPage() {
       } else {
         await driversApi.createDriver(form)
       }
-      setModalOpen(false)
+      setFormModalOpen(false)
       await loadDrivers()
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to save driver')
@@ -113,6 +150,8 @@ export function DriversPage() {
     setError(null)
     try {
       await driversApi.deleteDriver(driver.id)
+      setDetailsModalOpen(false)
+      setViewing(null)
       await loadDrivers()
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to delete driver')
@@ -124,7 +163,7 @@ export function DriversPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Drivers</h1>
-          <p className="text-sm text-slate-400">Track drivers, trucks, and current locations.</p>
+          <p className="text-sm text-slate-400">Track drivers, trucks, and fleet status.</p>
         </div>
         <button
           type="button"
@@ -137,14 +176,37 @@ export function DriversPage() {
       </div>
 
       {carriers.length === 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           Add a carrier before creating drivers.
         </div>
       )}
 
       {error && <Alert message={error} />}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-end gap-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-1 flex-wrap gap-3">
+          <TextInput
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by name, phone, truck, location, or carrier..."
+            className="min-w-64 flex-1"
+          />
+          <button
+            type="submit"
+            className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15"
+          >
+            Search
+          </button>
+          {search && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300"
+            >
+              Clear
+            </button>
+          )}
+        </form>
         <FormField label="Filter by carrier">
           <SelectInput
             value={carrierFilter ?? ''}
@@ -169,26 +231,29 @@ export function DriversPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-white/10 text-slate-400">
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Driver name</th>
                 <th className="px-4 py-3 font-medium">Carrier</th>
                 <th className="px-4 py-3 font-medium">Truck #</th>
                 <th className="px-4 py-3 font-medium">Trailer</th>
                 <th className="px-4 py-3 font-medium">Location</th>
                 <th className="px-4 py-3 font-medium">Phone</th>
+                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     Loading drivers...
                   </td>
                 </tr>
               ) : drivers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                    No drivers found.
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                    {search || carrierFilter
+                      ? 'No drivers match your filters.'
+                      : 'No drivers yet. Add your first driver to get started.'}
                   </td>
                 </tr>
               ) : (
@@ -201,7 +266,17 @@ export function DriversPage() {
                     <td className="px-4 py-3 text-slate-300">{driver.currentLocation}</td>
                     <td className="px-4 py-3 text-slate-300">{driver.phone}</td>
                     <td className="px-4 py-3">
+                      <DriverStatusBadge status={driver.status} />
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openView(driver)}
+                          className="text-slate-400 hover:text-white"
+                        >
+                          View
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEdit(driver)}
@@ -236,8 +311,8 @@ export function DriversPage() {
 
       <Modal
         title={editing ? 'Edit driver' : 'Add driver'}
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        open={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
           <FormField label="Carrier">
@@ -253,7 +328,7 @@ export function DriversPage() {
               ))}
             </SelectInput>
           </FormField>
-          <FormField label="Name">
+          <FormField label="Driver name">
             <TextInput
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -276,21 +351,38 @@ export function DriversPage() {
               />
             </FormField>
           </div>
-          <FormField label="Trailer type">
-            <SelectInput
-              value={form.trailerType}
-              onChange={(e) =>
-                setForm({ ...form, trailerType: e.target.value as TrailerType })
-              }
-              required
-            >
-              {TRAILER_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {formatEnum(type)}
-                </option>
-              ))}
-            </SelectInput>
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Trailer type">
+              <SelectInput
+                value={form.trailerType}
+                onChange={(e) =>
+                  setForm({ ...form, trailerType: e.target.value as TrailerType })
+                }
+                required
+              >
+                {TRAILER_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {formatEnum(type)}
+                  </option>
+                ))}
+              </SelectInput>
+            </FormField>
+            <FormField label="Status">
+              <SelectInput
+                value={form.status}
+                onChange={(e) =>
+                  setForm({ ...form, status: e.target.value as DriverStatus })
+                }
+                required
+              >
+                {DRIVER_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {formatEnum(status)}
+                  </option>
+                ))}
+              </SelectInput>
+            </FormField>
+          </div>
           <FormField label="Current location">
             <TextInput
               value={form.currentLocation}
@@ -301,7 +393,7 @@ export function DriversPage() {
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setModalOpen(false)}
+              onClick={() => setFormModalOpen(false)}
               className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-slate-300"
             >
               Cancel
@@ -311,10 +403,86 @@ export function DriversPage() {
               disabled={submitting}
               className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 disabled:opacity-60"
             >
-              {submitting ? 'Saving...' : 'Save'}
+              {submitting ? 'Saving...' : editing ? 'Save changes' : 'Add driver'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        title="Driver details"
+        open={detailsModalOpen}
+        onClose={() => {
+          setDetailsModalOpen(false)
+          setViewing(null)
+        }}
+      >
+        {viewing && (
+          <div className="space-y-4">
+            <dl className="grid gap-3 text-sm">
+              <div>
+                <dt className="text-slate-400">Driver name</dt>
+                <dd className="font-medium text-white">{viewing.name}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">Carrier</dt>
+                <dd className="font-medium text-white">{viewing.carrierName}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Phone</dt>
+                  <dd className="font-medium text-white">{viewing.phone}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Truck number</dt>
+                  <dd className="font-medium text-white">{viewing.truckNumber}</dd>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-slate-400">Trailer type</dt>
+                  <dd className="font-medium text-white">{formatEnum(viewing.trailerType)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Status</dt>
+                  <dd className="mt-1">
+                    <DriverStatusBadge status={viewing.status} />
+                  </dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-slate-400">Current location</dt>
+                <dd className="font-medium text-white">{viewing.currentLocation}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
+                <div>
+                  <dt className="text-slate-400">Created</dt>
+                  <dd className="text-slate-300">{formatDate(viewing.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Last updated</dt>
+                  <dd className="text-slate-300">{formatDate(viewing.updatedAt)}</dd>
+                </div>
+              </div>
+            </dl>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => openEdit(viewing)}
+                className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500"
+              >
+                Edit driver
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(viewing)}
+                className="rounded-xl border border-rose-500/30 px-4 py-2.5 text-sm font-semibold text-rose-400 hover:bg-rose-500/10"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

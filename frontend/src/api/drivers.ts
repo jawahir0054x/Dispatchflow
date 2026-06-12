@@ -1,10 +1,19 @@
 import type { Driver, DriverRequest, PageResponse } from '../types'
 import { apiRequest, buildPageParams } from './client'
 
-export function getDrivers(page = 0, size = 20, sort = 'name,asc', carrierId?: number) {
+export function getDrivers(
+  page = 0,
+  size = 20,
+  sort = 'name,asc',
+  carrierId?: number,
+  search?: string,
+) {
   const params = new URLSearchParams(buildPageParams(page, size, sort))
   if (carrierId !== undefined) {
     params.set('carrierId', String(carrierId))
+  }
+  if (search?.trim()) {
+    params.set('search', search.trim())
   }
   return apiRequest<PageResponse<Driver>>(`/api/drivers?${params}`)
 }

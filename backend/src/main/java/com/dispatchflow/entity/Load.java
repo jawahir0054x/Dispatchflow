@@ -22,6 +22,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "loads")
@@ -48,18 +49,32 @@ public class Load {
     @Column(nullable = false, length = 100)
     private String deliveryCity;
 
+    @Column(nullable = false, length = 255)
+    private String commodity;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal rate;
 
     @Column(nullable = false)
     private Integer miles;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer deadheadMiles = 0;
+
+    @Column(nullable = false)
+    private LocalDate pickupDate;
+
+    @Column(nullable = false)
+    private LocalDate deliveryDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private LoadStatus status;
+    @Builder.Default
+    private LoadStatus status = LoadStatus.AVAILABLE;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "driver_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
     private Driver driver;
 
     @Column(nullable = false, updatable = false)
@@ -73,6 +88,9 @@ public class Load {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
+        if (status == null) {
+            status = LoadStatus.AVAILABLE;
+        }
     }
 
     @PreUpdate

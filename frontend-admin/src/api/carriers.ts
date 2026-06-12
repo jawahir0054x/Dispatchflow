@@ -1,8 +1,11 @@
 import type { Carrier, CarrierRequest, PageResponse } from '../types'
 import { apiRequest, buildPageParams } from './client'
 
-export function getCarriers(page = 0, size = 20, sort = 'name,asc') {
-  const params = buildPageParams(page, size, sort)
+export function getCarriers(page = 0, size = 20, sort = 'name,asc', search?: string) {
+  const params = new URLSearchParams(buildPageParams(page, size, sort))
+  if (search?.trim()) {
+    params.set('search', search.trim())
+  }
   return apiRequest<PageResponse<Carrier>>(`/api/carriers?${params}`)
 }
 

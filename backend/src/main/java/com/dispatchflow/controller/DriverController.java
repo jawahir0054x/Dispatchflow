@@ -34,8 +34,9 @@ public class DriverController {
     @PreAuthorize(Authorities.HAS_ADMIN_OR_DISPATCHER)
     public ResponseEntity<PageResponse<DriverResponse>> getAllDrivers(
             @RequestParam(required = false) Long carrierId,
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(driverService.getAllDrivers(carrierId, pageable));
+        return ResponseEntity.ok(driverService.getAllDrivers(carrierId, search, pageable));
     }
 
     @GetMapping("/{id}")

@@ -1,5 +1,6 @@
 package com.dispatchflow.dto.request;
 
+import com.dispatchflow.enums.DriverStatus;
 import com.dispatchflow.enums.TrailerType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -38,4 +39,7 @@ public class DriverRequest {
     @NotBlank(message = "Current location is required")
     @Size(max = 255, message = "Current location must not exceed 255 characters")
     private String currentLocation;
+
+    @NotNull(message = "Status is required")
+    private DriverStatus status;
 }

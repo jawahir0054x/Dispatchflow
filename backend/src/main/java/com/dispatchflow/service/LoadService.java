@@ -17,8 +17,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.Map;
 import java.util.Set;
 
@@ -26,27 +24,46 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class LoadService {
 
+    private static final Set<LoadStatus> DRIVER_REQUIRED_STATUSES = Set.of(
+            LoadStatus.BOOKED,
+            LoadStatus.DISPATCHED,
+            LoadStatus.IN_TRANSIT,
+            LoadStatus.DELIVERED,
+            LoadStatus.PAID
+    );
+
     private static final Map<LoadStatus, Set<LoadStatus>> ALLOWED_TRANSITIONS = Map.of(
-            LoadStatus.PENDING, Set.of(LoadStatus.DISPATCHED, LoadStatus.CANCELLED),
-            LoadStatus.DISPATCHED, Set.of(LoadStatus.IN_TRANSIT, LoadStatus.CANCELLED),
-            LoadStatus.IN_TRANSIT, Set.of(LoadStatus.DELIVERED, LoadStatus.CANCELLED),
-            LoadStatus.DELIVERED, Set.of(),
-            LoadStatus.CANCELLED, Set.of()
+            LoadStatus.AVAILABLE, Set.of(LoadStatus.BOOKED),
+            LoadStatus.BOOKED, Set.of(LoadStatus.DISPATCHED),
+            LoadStatus.DISPATCHED, Set.of(LoadStatus.IN_TRANSIT),
+            LoadStatus.IN_TRANSIT, Set.of(LoadStatus.DELIVERED),
+            LoadStatus.DELIVERED, Set.of(LoadStatus.PAID),
+            LoadStatus.PAID, Set.of()
     );
 
     private final LoadRepository loadRepository;
     private final DriverRepository driverRepository;
+    private final LoadProfitabilityService profitabilityService;
 
     @Transactional(readOnly = true)
-    public PageResponse<LoadResponse> getAllLoads(Long driverId, LoadStatus status, Pageable pageable) {
+    public PageResponse<LoadResponse> getAllLoads(
+            Long driverId,
+            LoadStatus status,
+            String search,
+            String broker,
+            String driverName,
+            Pageable pageable) {
         Page<Load> page;
 
-        if (driverId != null && status != null) {
-            page = loadRepository.findByDriverIdAndStatus(driverId, status, pageable);
-        } else if (driverId != null) {
-            page = loadRepository.findByDriverId(driverId, pageable);
-        } else if (status != null) {
-            page = loadRepository.findByStatus(status, pageable);
+        if (!isBlank(search)) {
+            page = loadRepository.searchLoads(search.trim(), driverId, status, pageable);
+        } else if (driverId != null || status != null || !isBlank(broker) || !isBlank(driverName)) {
+            page = loadRepository.filterLoads(
+                    driverId,
+                    status,
+                    isBlank(broker) ? null : broker.trim(),
+                    isBlank(driverName) ? null : driverName.trim(),
+                    pageable);
         } else {
             page = loadRepository.findAll(pageable);
         }
@@ -62,15 +79,20 @@ public class LoadService {
 
     @Transactional
     public LoadResponse createLoad(LoadRequest request) {
-        Driver driver = findDriverOrThrow(request.getDriverId());
+        Driver driver = resolveDriver(request.getDriverId());
+        validateDriverForStatus(request.getStatus(), driver);
 
         Load load = Load.builder()
                 .referenceNumber(normalizeReference(request.getReferenceNumber()))
                 .brokerName(request.getBrokerName().trim())
                 .pickupCity(request.getPickupCity().trim())
                 .deliveryCity(request.getDeliveryCity().trim())
+                .commodity(request.getCommodity().trim())
                 .rate(request.getRate())
                 .miles(request.getMiles())
+                .deadheadMiles(normalizeDeadheadMiles(request.getDeadheadMiles()))
+                .pickupDate(request.getPickupDate())
+                .deliveryDate(request.getDeliveryDate())
                 .status(request.getStatus())
                 .driver(driver)
                 .build();
@@ -81,14 +103,19 @@ public class LoadService {
     @Transactional
     public LoadResponse updateLoad(Long id, LoadRequest request) {
         Load load = findLoadOrThrow(id);
-        Driver driver = findDriverOrThrow(request.getDriverId());
+        Driver driver = resolveDriver(request.getDriverId());
+        validateDriverForStatus(request.getStatus(), driver);
 
         load.setReferenceNumber(normalizeReference(request.getReferenceNumber()));
         load.setBrokerName(request.getBrokerName().trim());
         load.setPickupCity(request.getPickupCity().trim());
         load.setDeliveryCity(request.getDeliveryCity().trim());
+        load.setCommodity(request.getCommodity().trim());
         load.setRate(request.getRate());
         load.setMiles(request.getMiles());
+        load.setDeadheadMiles(normalizeDeadheadMiles(request.getDeadheadMiles()));
+        load.setPickupDate(request.getPickupDate());
+        load.setDeliveryDate(request.getDeliveryDate());
         load.setStatus(request.getStatus());
         load.setDriver(driver);
 
@@ -110,6 +137,8 @@ public class LoadService {
                     "Cannot transition load from " + currentStatus + " to " + newStatus);
         }
 
+        validateDriverForStatus(newStatus, load.getDriver());
+
         load.setStatus(newStatus);
         return toResponse(loadRepository.save(load));
     }
@@ -121,27 +150,34 @@ public class LoadService {
     }
 
     public LoadResponse toResponse(Load load) {
-        BigDecimal ratePerMile = load.getMiles() > 0
-                ? load.getRate().divide(BigDecimal.valueOf(load.getMiles()), 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
-
-        return LoadResponse.builder()
+        LoadResponse.LoadResponseBuilder builder = LoadResponse.builder()
                 .id(load.getId())
                 .loadNumber(formatLoadNumber(load.getId()))
                 .referenceNumber(load.getReferenceNumber())
                 .brokerName(load.getBrokerName())
                 .pickupCity(load.getPickupCity())
                 .deliveryCity(load.getDeliveryCity())
+                .commodity(load.getCommodity())
                 .rate(load.getRate())
                 .miles(load.getMiles())
-                .ratePerMile(ratePerMile)
+                .deadheadMiles(profitabilityService.deadheadMiles(load))
+                .pickupDate(load.getPickupDate())
+                .deliveryDate(load.getDeliveryDate())
+                .ratePerMile(profitabilityService.calculateRatePerMile(load))
+                .deadheadPercentage(profitabilityService.calculateDeadheadPercentage(load))
+                .estimatedProfit(profitabilityService.calculateEstimatedProfit(load))
                 .status(load.getStatus())
-                .driverId(load.getDriver().getId())
-                .driverName(load.getDriver().getName())
-                .carrierName(load.getDriver().getCarrier().getName())
                 .createdAt(load.getCreatedAt())
-                .updatedAt(load.getUpdatedAt())
-                .build();
+                .updatedAt(load.getUpdatedAt());
+
+        if (load.getDriver() != null) {
+            builder
+                    .driverId(load.getDriver().getId())
+                    .driverName(load.getDriver().getName())
+                    .carrierName(load.getDriver().getCarrier().getName());
+        }
+
+        return builder.build();
     }
 
     private String formatLoadNumber(Long id) {
@@ -155,6 +191,19 @@ public class LoadService {
         return referenceNumber.trim();
     }
 
+    private Driver resolveDriver(Long driverId) {
+        if (driverId == null) {
+            return null;
+        }
+        return findDriverOrThrow(driverId);
+    }
+
+    private void validateDriverForStatus(LoadStatus status, Driver driver) {
+        if (DRIVER_REQUIRED_STATUSES.contains(status) && driver == null) {
+            throw new ForbiddenException("Assigned driver is required for status: " + status);
+        }
+    }
+
     private Load findLoadOrThrow(Long id) {
         return loadRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Load not found with id: " + id));
@@ -163,5 +212,13 @@ public class LoadService {
     private Driver findDriverOrThrow(Long driverId) {
         return driverRepository.findById(driverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver not found with id: " + driverId));
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private int normalizeDeadheadMiles(Integer deadheadMiles) {
+        return deadheadMiles != null ? deadheadMiles : 0;
     }
 }

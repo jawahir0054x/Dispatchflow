@@ -2,6 +2,7 @@ package com.dispatchflow.service;
 
 import com.dispatchflow.dto.response.DashboardStatsResponse;
 import com.dispatchflow.dto.response.LoadResponse;
+import com.dispatchflow.enums.DriverStatus;
 import com.dispatchflow.enums.LoadStatus;
 import com.dispatchflow.enums.Role;
 import com.dispatchflow.repository.CarrierRepository;
@@ -29,7 +30,7 @@ import java.util.Map;
 public class DashboardService {
 
     private static final List<LoadStatus> PIPELINE_STATUSES = List.of(
-            LoadStatus.PENDING,
+            LoadStatus.BOOKED,
             LoadStatus.DISPATCHED,
             LoadStatus.IN_TRANSIT
     );
@@ -44,12 +45,13 @@ public class DashboardService {
     private final CarrierRepository carrierRepository;
     private final UserRepository userRepository;
     private final LoadService loadService;
+    private final LoadProfitabilityService profitabilityService;
 
     @Transactional(readOnly = true)
     public DashboardStatsResponse getStats(Authentication authentication) {
         long totalDrivers = driverRepository.count();
-        long activeDrivers = loadRepository.countActiveDrivers();
-        long idleDrivers = Math.max(0, totalDrivers - activeDrivers);
+        long activeDrivers = driverRepository.countByStatus(DriverStatus.UNDER_LOAD);
+        long idleDrivers = driverRepository.countByStatus(DriverStatus.AVAILABLE);
 
         Map<LoadStatus, Long> loadsByStatus = new EnumMap<>(LoadStatus.class);
         for (LoadStatus status : LoadStatus.values()) {
@@ -60,16 +62,24 @@ public class DashboardService {
         }
 
         long totalLoads = loadsByStatus.values().stream().mapToLong(Long::longValue).sum();
-        BigDecimal deliveredRevenue = loadRepository.sumRateByStatus(LoadStatus.DELIVERED);
+        long activeLoadsCount = loadRepository.countActiveLoads();
+        BigDecimal deliveredRevenue = loadRepository.sumDeliveredRevenue();
         BigDecimal pipelineRevenue = PIPELINE_STATUSES.stream()
                 .map(loadRepository::sumRateByStatus)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalRevenue = loadRepository.sumTotalRevenue();
         long totalMiles = loadRepository.sumTotalMiles();
+        long totalDeadheadMiles = loadRepository.sumDeadheadMiles();
+        long totalTripMiles = loadRepository.sumTotalTripMiles();
 
         BigDecimal avgRatePerMile = totalMiles > 0
                 ? totalRevenue.divide(BigDecimal.valueOf(totalMiles), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
+
+        BigDecimal totalEstimatedProfit = profitabilityService.calculateFleetEstimatedProfit(
+                totalRevenue, totalTripMiles);
+        BigDecimal avgDeadheadPercentage = profitabilityService.calculateFleetDeadheadPercentage(
+                totalDeadheadMiles, totalTripMiles);
 
         Instant weekAgo = Instant.now().minus(7, ChronoUnit.DAYS);
         long loadsThisWeek = loadRepository.countLoadsSince(weekAgo);
@@ -88,6 +98,7 @@ public class DashboardService {
                 .totalCarriers(carrierRepository.count())
                 .totalDrivers(totalDrivers)
                 .totalLoads(totalLoads)
+                .activeLoadsCount(activeLoadsCount)
                 .activeDrivers(activeDrivers)
                 .idleDrivers(idleDrivers)
                 .loadsThisWeek(loadsThisWeek)
@@ -96,6 +107,8 @@ public class DashboardService {
                 .deliveredRevenue(deliveredRevenue)
                 .pipelineRevenue(pipelineRevenue)
                 .avgRatePerMile(avgRatePerMile)
+                .totalEstimatedProfit(totalEstimatedProfit)
+                .avgDeadheadPercentage(avgDeadheadPercentage)
                 .totalMiles(totalMiles)
                 .recentLoads(recentLoads)
                 .activeLoads(activeLoads);

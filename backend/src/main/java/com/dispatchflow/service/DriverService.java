@@ -6,9 +6,11 @@ import com.dispatchflow.dto.response.PageResponse;
 import com.dispatchflow.entity.Carrier;
 import com.dispatchflow.entity.Driver;
 import com.dispatchflow.exception.DuplicateResourceException;
+import com.dispatchflow.exception.ForbiddenException;
 import com.dispatchflow.exception.ResourceNotFoundException;
 import com.dispatchflow.repository.CarrierRepository;
 import com.dispatchflow.repository.DriverRepository;
+import com.dispatchflow.repository.LoadRepository;
 import com.dispatchflow.util.PageMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,12 +24,19 @@ public class DriverService {
 
     private final DriverRepository driverRepository;
     private final CarrierRepository carrierRepository;
+    private final LoadRepository loadRepository;
 
     @Transactional(readOnly = true)
-    public PageResponse<DriverResponse> getAllDrivers(Long carrierId, Pageable pageable) {
-        Page<Driver> page = carrierId == null
-                ? driverRepository.findAll(pageable)
-                : driverRepository.findByCarrierId(carrierId, pageable);
+    public PageResponse<DriverResponse> getAllDrivers(Long carrierId, String search, Pageable pageable) {
+        Page<Driver> page;
+
+        if (!isBlank(search)) {
+            page = driverRepository.searchByTerm(search.trim(), carrierId, pageable);
+        } else if (carrierId != null) {
+            page = driverRepository.findByCarrierId(carrierId, pageable);
+        } else {
+            page = driverRepository.findAll(pageable);
+        }
 
         return PageMapper.toPageResponse(page, this::toResponse);
     }
@@ -49,6 +58,7 @@ public class DriverService {
                 .truckNumber(normalizeTruckNumber(request.getTruckNumber()))
                 .trailerType(request.getTrailerType())
                 .currentLocation(request.getCurrentLocation().trim())
+                .status(request.getStatus())
                 .carrier(carrier)
                 .build();
 
@@ -66,6 +76,7 @@ public class DriverService {
         driver.setTruckNumber(normalizeTruckNumber(request.getTruckNumber()));
         driver.setTrailerType(request.getTrailerType());
         driver.setCurrentLocation(request.getCurrentLocation().trim());
+        driver.setStatus(request.getStatus());
         driver.setCarrier(carrier);
 
         return toResponse(driverRepository.save(driver));
@@ -74,6 +85,9 @@ public class DriverService {
     @Transactional
     public void deleteDriver(Long id) {
         Driver driver = findDriverOrThrow(id);
+        if (loadRepository.existsByDriverId(id)) {
+            throw new ForbiddenException("Cannot delete driver with assigned loads");
+        }
         driverRepository.delete(driver);
     }
 
@@ -105,6 +119,10 @@ public class DriverService {
         return truckNumber.trim().toUpperCase();
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     private DriverResponse toResponse(Driver driver) {
         return DriverResponse.builder()
                 .id(driver.getId())
@@ -113,6 +131,7 @@ public class DriverService {
                 .truckNumber(driver.getTruckNumber())
                 .trailerType(driver.getTrailerType())
                 .currentLocation(driver.getCurrentLocation())
+                .status(driver.getStatus())
                 .carrierId(driver.getCarrier().getId())
                 .carrierName(driver.getCarrier().getName())
                 .createdAt(driver.getCreatedAt())

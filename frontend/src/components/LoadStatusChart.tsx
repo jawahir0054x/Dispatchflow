@@ -2,19 +2,21 @@ import type { LoadStatus } from '../types'
 import { formatEnum } from '../utils/format'
 
 const STATUS_COLORS: Record<LoadStatus, string> = {
-  PENDING: 'bg-amber-500',
+  AVAILABLE: 'bg-slate-400',
+  BOOKED: 'bg-amber-500',
   DISPATCHED: 'bg-blue-500',
   IN_TRANSIT: 'bg-indigo-500',
   DELIVERED: 'bg-emerald-500',
-  CANCELLED: 'bg-rose-400',
+  PAID: 'bg-teal-500',
 }
 
 const STATUS_ORDER: LoadStatus[] = [
-  'PENDING',
+  'AVAILABLE',
+  'BOOKED',
   'DISPATCHED',
   'IN_TRANSIT',
   'DELIVERED',
-  'CANCELLED',
+  'PAID',
 ]
 
 interface LoadStatusChartProps {
@@ -41,7 +43,7 @@ export function LoadStatusChart({ loadsByStatus }: LoadStatusChartProps) {
           )
         })}
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {STATUS_ORDER.map((status) => {
           const count = loadsByStatus[status] ?? 0
           return (

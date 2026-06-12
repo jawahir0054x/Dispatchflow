@@ -3,10 +3,12 @@ import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { to: '/', label: 'Overview', end: true },
+  { to: '/dispatch', label: 'Dispatch Board' },
   { to: '/users', label: 'Users' },
   { to: '/carriers', label: 'Carriers' },
   { to: '/drivers', label: 'Drivers' },
   { to: '/loads', label: 'Loads' },
+  { to: '/documents', label: 'Documents' },
 ]
 
 export function Layout() {

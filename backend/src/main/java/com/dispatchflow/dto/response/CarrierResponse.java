@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -21,6 +22,7 @@ public class CarrierResponse {
     private String dotNumber;
     private String phone;
     private String email;
+    private LocalDate insuranceExpiryDate;
     private Instant createdAt;
     private Instant updatedAt;
 }
