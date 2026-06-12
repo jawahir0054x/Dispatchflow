@@ -18,6 +18,8 @@ import java.time.Instant;
 public class LoadResponse {
 
     private Long id;
+    private String loadNumber;
+    private String referenceNumber;
     private String brokerName;
     private String pickupCity;
     private String deliveryCity;
@@ -26,6 +28,8 @@ public class LoadResponse {
     private LoadStatus status;
     private Long driverId;
     private String driverName;
+    private String carrierName;
+    private BigDecimal ratePerMile;
     private Instant createdAt;
     private Instant updatedAt;
 }

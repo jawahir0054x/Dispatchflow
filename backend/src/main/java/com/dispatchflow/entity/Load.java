@@ -36,6 +36,9 @@ public class Load {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 50)
+    private String referenceNumber;
+
     @Column(nullable = false, length = 255)
     private String brokerName;
 

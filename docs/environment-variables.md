@@ -17,7 +17,7 @@ Loaded by `docker compose` and `npm run dev:backend` (via `dotenv-cli`).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DB_HOST` | `localhost` | PostgreSQL host |
-| `DB_PORT` | `5432` | PostgreSQL port |
+| `DB_PORT` | `5433` | PostgreSQL port (5433 avoids WSL/system Postgres on 5432) |
 | `DB_NAME` | `dispatchflow` | Database name |
 | `DB_USERNAME` | `dispatchflow` | Database user |
 | `DB_PASSWORD` | `dispatchflow` | Database password |

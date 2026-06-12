@@ -6,6 +6,7 @@ import { Alert } from '../components/Alert'
 import { FormField, SelectInput, TextInput } from '../components/FormField'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
+import { DispatchActions } from '../components/DispatchActions'
 import { StatusBadge } from '../components/StatusBadge'
 import type { Driver, Load, LoadRequest, LoadStatus } from '../types'
 import { formatCurrency } from '../utils/format'
@@ -20,6 +21,7 @@ const LOAD_STATUSES: LoadStatus[] = [
 
 const emptyForm: LoadRequest = {
   driverId: 0,
+  referenceNumber: '',
   brokerName: '',
   pickupCity: '',
   deliveryCity: '',
@@ -79,6 +81,7 @@ export function LoadsPage() {
     setEditing(load)
     setForm({
       driverId: load.driverId,
+      referenceNumber: load.referenceNumber ?? '',
       brokerName: load.brokerName,
       pickupCity: load.pickupCity,
       deliveryCity: load.deliveryCity,
@@ -106,6 +109,10 @@ export function LoadsPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function handleLoadUpdated(updated: Load) {
+    setLoads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
   }
 
   async function handleDelete(load: Load) {
@@ -188,40 +195,61 @@ export function LoadsPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-surface-200 bg-surface-50 text-slate-500">
               <tr>
-                <th className="px-4 py-3 font-medium">Broker</th>
-                <th className="px-4 py-3 font-medium">Route</th>
-                <th className="px-4 py-3 font-medium">Driver</th>
+                <th className="px-4 py-3 font-medium">Load #</th>
+                <th className="px-4 py-3 font-medium">Lane</th>
+                <th className="px-4 py-3 font-medium">Driver / Carrier</th>
                 <th className="px-4 py-3 font-medium">Rate</th>
-                <th className="px-4 py-3 font-medium">Miles</th>
+                <th className="px-4 py-3 font-medium">RPM</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Dispatch</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                     Loading loads...
                   </td>
                 </tr>
               ) : loads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                     No loads found.
                   </td>
                 </tr>
               ) : (
                 loads.map((load) => (
                   <tr key={load.id} className="border-b border-surface-100 last:border-0">
-                    <td className="px-4 py-3 font-medium text-slate-900">{load.brokerName}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-mono text-xs font-semibold text-brand-700">{load.loadNumber}</p>
+                      <p className="font-medium text-slate-900">{load.brokerName}</p>
+                      {load.referenceNumber && (
+                        <p className="text-xs text-slate-400">Ref: {load.referenceNumber}</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {load.pickupCity} → {load.deliveryCity}
+                      <p className="text-xs text-slate-400">{load.miles} mi</p>
                     </td>
-                    <td className="px-4 py-3">{load.driverName}</td>
+                    <td className="px-4 py-3">
+                      <p>{load.driverName}</p>
+                      <p className="text-xs text-slate-400">{load.carrierName}</p>
+                    </td>
                     <td className="px-4 py-3">{formatCurrency(load.rate)}</td>
-                    <td className="px-4 py-3">{load.miles}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatCurrency(load.ratePerMile)}/mi
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={load.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <DispatchActions
+                        load={load}
+                        onUpdated={handleLoadUpdated}
+                        onError={setError}
+                        compact
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -276,13 +304,22 @@ export function LoadsPage() {
               ))}
             </SelectInput>
           </FormField>
-          <FormField label="Broker name">
-            <TextInput
-              value={form.brokerName}
-              onChange={(e) => setForm({ ...form, brokerName: e.target.value })}
-              required
-            />
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Broker name">
+              <TextInput
+                value={form.brokerName}
+                onChange={(e) => setForm({ ...form, brokerName: e.target.value })}
+                required
+              />
+            </FormField>
+            <FormField label="Reference # (optional)">
+              <TextInput
+                value={form.referenceNumber ?? ''}
+                onChange={(e) => setForm({ ...form, referenceNumber: e.target.value })}
+                placeholder="Broker load ID"
+              />
+            </FormField>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Pickup city">
               <TextInput

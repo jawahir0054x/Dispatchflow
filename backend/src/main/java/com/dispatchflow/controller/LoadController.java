@@ -1,6 +1,7 @@
 package com.dispatchflow.controller;
 
 import com.dispatchflow.dto.request.LoadRequest;
+import com.dispatchflow.dto.request.LoadStatusUpdateRequest;
 import com.dispatchflow.dto.response.LoadResponse;
 import com.dispatchflow.dto.response.PageResponse;
 import com.dispatchflow.enums.LoadStatus;
@@ -17,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +61,14 @@ public class LoadController {
             @PathVariable Long id,
             @Valid @RequestBody LoadRequest request) {
         return ResponseEntity.ok(loadService.updateLoad(id, request));
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize(Authorities.HAS_ADMIN_OR_DISPATCHER)
+    public ResponseEntity<LoadResponse> updateLoadStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody LoadStatusUpdateRequest request) {
+        return ResponseEntity.ok(loadService.updateLoadStatus(id, request.getStatus()));
     }
 
     @DeleteMapping("/{id}")

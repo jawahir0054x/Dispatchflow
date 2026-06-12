@@ -32,7 +32,17 @@ See [environment-variables.md](environment-variables.md) for details.
 npm run install:all
 ```
 
-Installs root tooling plus `frontend` and `frontend-admin` packages.
+Installs root tooling plus `backend`, `frontend`, and `frontend-admin` packages.
+
+### Backend only (from `backend/`)
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+`npm start` runs Spring Boot via Maven and loads env from `../.env`.
 
 ## 3. Start the full stack
 
@@ -43,7 +53,7 @@ npm run dev
 This command:
 
 1. Starts PostgreSQL (`docker compose up -d`)
-2. Waits for port `5432`
+2. Waits for PostgreSQL (default port `5433` — avoids conflict with a system Postgres on `5432`)
 3. Runs backend, dispatcher portal, and admin console concurrently
 
 ### Run services individually
@@ -96,7 +106,8 @@ Before production frontend builds, set `VITE_API_URL` in each frontend `.env` to
 | Issue | Fix |
 |-------|-----|
 | Port 5432 in use | Stop other Postgres instances or change `DB_PORT` in `.env` |
-| Backend won't connect to DB | Run `npm run dev:db` and verify `.env` DB credentials match docker-compose |
+| Backend won't connect to DB | Run `docker compose up -d` from project root; ensure `.env` has `DB_PORT=5433` if system Postgres uses 5432 |
+| Port 8080 already in use | Stop the other process or set `server.port` in `application.yml` / use a different port |
 | CORS errors | Ensure `CORS_ALLOWED_ORIGINS` includes both `5173` and `5174` |
 | Admin can't sign in on :5173 | Expected — admins use :5174; dispatcher portal redirects admins |
 | `mvnw: Permission denied` | Run `chmod +x backend/mvnw` |

@@ -96,6 +96,8 @@ export interface DriverRequest {
 
 export interface Load {
   id: number
+  loadNumber: string
+  referenceNumber?: string | null
   brokerName: string
   pickupCity: string
   deliveryCity: string
@@ -104,12 +106,15 @@ export interface Load {
   status: LoadStatus
   driverId: number
   driverName: string
+  carrierName: string
+  ratePerMile: number
   createdAt: string
   updatedAt: string
 }
 
 export interface LoadRequest {
   driverId: number
+  referenceNumber?: string
   brokerName: string
   pickupCity: string
   deliveryCity: string
@@ -121,6 +126,24 @@ export interface LoadRequest {
 export interface LoginRequest {
   email: string
   password: string
+}
+
+export interface DashboardStats {
+  totalCarriers: number
+  totalDrivers: number
+  totalLoads: number
+  totalUsers?: number | null
+  activeDrivers: number
+  idleDrivers: number
+  loadsThisWeek: number
+  loadsByStatus: Record<LoadStatus, number>
+  totalRevenue: number
+  deliveredRevenue: number
+  pipelineRevenue: number
+  avgRatePerMile: number
+  totalMiles: number
+  recentLoads: Load[]
+  activeLoads: Load[]
 }
 
 export interface RegisterRequest {

@@ -33,3 +33,10 @@ export function updateLoad(id: number, request: LoadRequest) {
 export function deleteLoad(id: number) {
   return apiRequest<void>(`/api/loads/${id}`, { method: 'DELETE' })
 }
+
+export function updateLoadStatus(id: number, status: LoadStatus) {
+  return apiRequest<Load>(`/api/loads/${id}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+}

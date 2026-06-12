@@ -1,0 +1,19 @@
+{
+  "name": "dispatchflow-backend",
+  "private": true,
+  "version": "0.0.1",
+  "description": "DispatchFlow AI — Spring Boot backend (npm scripts wrap Maven)",
+  "scripts": {
+    "postinstall": "chmod +x mvnw",
+    "start": "dotenv -e ../.env -e .env -- ./mvnw spring-boot:run",
+    "build": "./mvnw clean package -DskipTests",
+    "test": "dotenv -e ../.env -e .env -- ./mvnw test",
+    "dev": "npm start"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

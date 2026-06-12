@@ -24,6 +24,9 @@ public class LoadRequest {
     @NotNull(message = "Driver ID is required")
     private Long driverId;
 
+    @Size(max = 50, message = "Reference number must not exceed 50 characters")
+    private String referenceNumber;
+
     @NotBlank(message = "Broker name is required")
     @Size(max = 255, message = "Broker name must not exceed 255 characters")
     private String brokerName;
