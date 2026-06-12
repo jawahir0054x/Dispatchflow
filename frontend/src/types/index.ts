@@ -204,3 +204,20 @@ export interface DeadheadCalculationResponse {
   resolvedPickupLocation: string
   deadheadMiles: number
 }
+
+export type LoadGrade = 'A' | 'B' | 'C' | 'D' | 'F'
+
+export type LoadRecommendation = 'GOOD_LOAD' | 'AVERAGE_LOAD' | 'AVOID_LOAD'
+
+export interface LoadAnalysisRequest {
+  rate: number
+  miles: number
+  deadheadMiles?: number
+}
+
+export interface LoadAnalysisResponse {
+  ratePerMile: number
+  profitabilityScore: number
+  loadGrade: LoadGrade
+  recommendation: LoadRecommendation
+}

@@ -5,6 +5,7 @@ import { ApiClientError } from '../api/client'
 import { Alert } from '../components/Alert'
 import { DeadheadCalculator } from '../components/DeadheadCalculator'
 import { DispatchActions } from '../components/DispatchActions'
+import { LoadAnalyzerCard } from '../components/LoadAnalyzerCard'
 import { FormField, SelectInput, TextInput } from '../components/FormField'
 import { Modal } from '../components/Modal'
 import { Pagination } from '../components/Pagination'
@@ -469,6 +470,11 @@ export function LoadsPage() {
               />
             </FormField>
           </div>
+          <LoadAnalyzerCard
+            rate={form.rate}
+            miles={form.miles}
+            deadheadMiles={form.deadheadMiles ?? 0}
+          />
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Pickup date">
               <TextInput
@@ -599,6 +605,11 @@ export function LoadsPage() {
                   </div>
                 </div>
               </div>
+              <LoadAnalyzerCard
+                rate={viewing.rate}
+                miles={viewing.miles}
+                deadheadMiles={viewing.deadheadMiles}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <dt className="text-slate-500">Pickup date</dt>
